@@ -1,0 +1,26 @@
+NEO4J_DATABASE=eeb5edc3
+AURA_INSTANCEID=eeb5edc3
+AURA_INSTANCENAME=Free instance
+
+Step 1: git clone https://github.com/neo4j-product-examples/graphrag-examples.git
+
+Step 2: 
+Create new python virtual environment
+
+uv venv graphrag_venv --python 3.12
+
+Step 3:
+To activeate on PowerShell: 
+.\graphrag_venv\Scripts\Activate.ps1
+
+Step 4: uv pip install -r requirements.txt
+
+Step 5: Check if everything works:
+uv pip list | Select-String "openai|anthropic"
+python -c "import anthropic, neo4j_graphrag; print('ok')"
+
+Step 6: SSL error:
+uv pip install truststore
+import truststore
+truststore.inject_into_ssl() 
+

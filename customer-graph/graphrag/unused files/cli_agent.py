@@ -3,14 +3,12 @@ import asyncio
 
 from dotenv import load_dotenv
 from semantic_kernel import Kernel
-from semantic_kernel.connectors.ai.open_ai import OpenAIChatCompletion
+from semantic_kernel.connectors.ai.anthropic import AnthropicChatCompletion, AnthropicChatPromptExecutionSettings
 
 from semantic_kernel.contents.chat_history import ChatHistory
 from retail_plugin import RetailPlugin
 from retail_service import RetailService
 from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
-from semantic_kernel.connectors.ai.open_ai.prompt_execution_settings.open_ai_prompt_execution_settings import (
-    OpenAIChatPromptExecutionSettings)
 from semantic_kernel.connectors.ai.function_choice_behavior import FunctionChoiceBehavior
 from semantic_kernel.functions.kernel_arguments import KernelArguments
 import logging
@@ -20,7 +18,8 @@ logging.basicConfig(level=logging.INFO)
 
 #get info from environment
 load_dotenv()
-OPENAI_KEY = os.getenv('OPENAI_API_KEY')
+ANTHROPIC_KEY = os.getenv('ANTHROPIC_API_KEY')
+CLAUDE_MODEL = os.getenv('CLAUDE_MODEL', 'claude-sonnet-5-5')
 NEO4J_URI=os.getenv('NEO4J_URI')
 NEO4J_USER=os.getenv('NEO4J_USERNAME')
 NEO4J_PASSWORD=os.getenv('NEO4J_PASSWORD')
@@ -33,11 +32,12 @@ kernel = Kernel()
 retail_analysis_neo4j = RetailService(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
 kernel.add_plugin(RetailPlugin(retail_service=retail_analysis_neo4j), plugin_name="retail_analysis")
 
-# Add the OpenAI chat completion service to the Kernel
-kernel.add_service(OpenAIChatCompletion(ai_model_id="gpt-4o-mini", api_key=OPENAI_KEY, service_id=service_id))
+# Add the Claude chat completion service to the Kernel
+kernel.add_service(AnthropicChatCompletion(ai_model_id=CLAUDE_MODEL, api_key=ANTHROPIC_KEY, service_id=service_id))
 
 # Enable automatic function calling
-settings: OpenAIChatPromptExecutionSettings = kernel.get_prompt_execution_settings_from_service_id(service_id=service_id)
+settings: AnthropicChatPromptExecutionSettings = kernel.get_prompt_execution_settings_from_service_id(service_id=service_id)
+settings.max_tokens = 4096  # required by the Anthropic API
 settings.function_choice_behavior = FunctionChoiceBehavior.Auto(filters={"included_plugins": ["retail_analysis"]})
 
 
@@ -58,7 +58,7 @@ async def basic_agent() :
         history.add_user_message(userInput)
 
         # 3. Get the response from the AI with automatic function calling
-        chat_completion : OpenAIChatCompletion = kernel.get_service(type=ChatCompletionClientBase)
+        chat_completion : AnthropicChatCompletion = kernel.get_service(type=ChatCompletionClientBase)
         result = (await chat_completion.get_chat_message_contents(
             chat_history=history,
             settings=settings,
@@ -76,6 +76,3 @@ async def basic_agent() :
 if __name__ == "__main__":
     
     asyncio.run(basic_agent())
-
-
-    

@@ -4,17 +4,17 @@ python-dotenv
 retry
 
 #ai
-openai
+anthropic
 langchain
-langchain-openai
+langchain-anthropic
 langchain-community
 langchain-text-splitters
 langchain-neo4j
-semantic-kernel
+semantic-kernel[anthropic]
 
 #neo4j
-neo4j-graphrag
-neo4j-graphrag[openai]
+neo4j-graphrag[anthropic,openai,sentence-transformers,fuzzy-matching,nlp]==1.7.0
+click
 neo4j-rust-ext
 graphdatascience
 
@@ -34,3 +34,5 @@ plotly
 tqdm
 altair<5
 jupyter
+
+truststore
