@@ -8,7 +8,24 @@ This repository contains multiple GraphRAG examples.
 // WHERE any(label IN labels(n)) WHERE label IN ['Article', 'Order', 'Chunk']
 RETURN labels(n) AS entity, count(n) AS total_nodes;
 
-# Study notes:
+
+# Agent notes: who generates the Cypher?
+
+There are 2 ways to get a Cypher query:
+
+## Option A: the MCP server calls Claude to generate the Cypher
+- Tool: `answer_general_question`, which calls `text_to_cypher_query` 
+- `Text2CypherRetriever` sends the graph schema (`ontos/text-to-cypher.json`), the `custom_prompt` template and the user's question to Claude through an API call (`self._llm`). The MCP server gets the Cypher statement back from Claude's API response, runs it on Aura, and returns the Cypher and the rows to the chat model, which reads them and writes the answer to the user. On failure it retries up to 3 times, so one question can trigger up to 3 API calls.
+- Billing: schema reading and Cypher generation are billed separately to my **API account**. The chat model still uses chat usage to decide to call the tool, read the returned Cypher and rows, and write the answer.
+
+## Option B: the chat model writes the Cypher
+- Tools: `get_graph_schema` and `run_read_cypher`. The MCP server makes no LLM call, so there is no cost on my API account.
+- The chat model calls `get_graph_schema`, which returns the schema text as a tool result (input tokens). The chat model then writes the Cypher itself (output tokens). Then it calls `run_read_cypher` with the Cypher it wrote, the MCP server runs it on Aura (read-only) and returns the rows to the chat model, which reads them and writes the answer to the user.
+- Billing: everything goes into my Claude plan's usage limit.
+
+In both options an LLM generates the Cypher, and the MCP server is the one that connects to Aura and runs it.
+
+# Tools notes:
 
 
 `VectorRetriever.search()` embeds the user's prompt and runs a Cypher query that returns as many nodes as `top_k` specifies. 
