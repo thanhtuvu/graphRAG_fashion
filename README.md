@@ -36,21 +36,56 @@ Builds a text description for each product (name, type, category, description) i
 ### 4. A completed graph after all ingestions:
 ![alt text](image.png)
 
-## MCP tools:
+## MCP tools
 
-| Tool | What it does | Input |
-|---|---|---|
-| `search_products` | Finds the products whose description is closest in meaning to your text, e.g. "light summer dress". | free text |
-![search_product__tool](customer-graph/screenshot/search_product__tool.png)
-| `get_supplier_order_product_info` | Returns each supplier's total orders and refunds, plus a per-product breakdown. Counts are per order line / credit-note line, so they can be higher than the number of distinct orders. | supplier IDs |
-![get_supplier_order_product_info](customer-graph/screenshot/get_supplier_order_product_info__tool.png)
-| `answer_general_question` (Option A) | Answers any other question about the graph. The MCP server asks Claude to write the Cypher, runs it, and returns the Cypher and the rows. | a question in plain English |
-![answer_general_question](customer-graph/screenshot/answer_general_question__tool.png)
-| `get_graph_schema` (Option B) | Returns the graph schema plus a few example questions with their Cypher, so the chat model can write its own queries. | none |
-| `run_read_cypher` (Option B) | Runs a read-only Cypher query that the chat model wrote (up to 50 rows, 15-second timeout). | a Cypher query |
-![get_graph_schema__run_read_cypher__tool](customer-graph/screenshot/get_graph_schema__run_read_cypher__tool.png)
-| `recommend_products` | "People who bought these also bought": returns up to 20 products that other buyers of the same items also ordered, ranked by how often. Segment IDs appear in the tool description, but this project doesn't create them. | product codes or article IDs |
-![recommend_products__tool](customer-graph/screenshot/recommend_products__tool.png)
+### `search_products`
+
+Finds the products whose description is closest in meaning to your text, e.g. "light summer dress".
+
+**Input:** free text
+
+<p align="center">
+  <img src="customer-graph/screenshot/search_product__tool.png" alt="search_products tool call in Claude Desktop" width="600">
+</p>
+
+### `get_supplier_order_product_info`
+
+Returns each supplier's total orders and refunds, plus a per-product breakdown. Counts are per order line / credit-note line, so they can be higher than the number of distinct orders.
+
+**Input:** supplier IDs
+
+<p align="center">
+  <img src="customer-graph/screenshot/get_supplier_order_product_info__tool.png" alt="get_supplier_order_product_info tool call in Claude Desktop" width="600">
+</p>
+
+### `answer_general_question` (Option A)
+
+Answers any other question about the graph. The MCP server asks Claude to write the Cypher, runs it, and returns the Cypher and the rows.
+
+**Input:** a question in plain English
+
+<p align="center">
+  <img src="customer-graph/screenshot/answer_general_question__tool.png" alt="answer_general_question tool call in Claude Desktop" width="600">
+</p>
+
+### `get_graph_schema` and `run_read_cypher` (Option B)
+
+- **`get_graph_schema`** returns the graph schema plus a few example questions with their Cypher, so the chat model can write its own queries. **Input:** none.
+- **`run_read_cypher`** runs a read-only Cypher query that the chat model wrote (up to 50 rows, 15-second timeout). **Input:** a Cypher query.
+
+<p align="center">
+  <img src="customer-graph/screenshot/get_graph_schema__run_read_cypher__tool.png" alt="get_graph_schema and run_read_cypher tool calls in Claude Desktop" width="600">
+</p>
+
+### `recommend_products`
+
+"People who bought these also bought": returns up to 20 products that other buyers of the same items also ordered, ranked by how often. Segment IDs appear in the tool description, but this project doesn't create them.
+
+**Input:** product codes or article IDs
+
+<p align="center">
+  <img src="customer-graph/screenshot/recommend_products__tool.png" alt="recommend_products tool call in Claude Desktop" width="600">
+</p>
 
 
 # Agent notes: who generates the Cypher?
