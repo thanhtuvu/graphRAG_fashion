@@ -1,12 +1,56 @@
-# GraphRAG Examples
-This repository contains multiple GraphRAG examples. 
-1. __[customer-graph](customer-graph):__ End-to-end worked example for building a GraphRAG agent to accelerate customer and retail analytics.
-2. __[patterns-app](patterns-app):__ A streamlit app for introducing and teaching example GraphRAG patterns.
+# GraphRAG fashion retail: Neo4j + Claude + MCP
 
-# Cypher queries
-1. MATCH (n)
-// WHERE any(label IN labels(n)) WHERE label IN ['Article', 'Order', 'Chunk']
-RETURN labels(n) AS entity, count(n) AS total_nodes;
+A learn-by-doing GraphRAG project on a fashion-retail dataset. A Neo4j Aura graph is built from structured CSVs plus credit-note text extracted from a PDF, then exposed to Claude Desktop through a local MCP server (`customer-graph/graphrag/mcp_server.py`). Embeddings are computed locally (`all-MiniLM-L6-v2`, 384 dimensions). Source repo: [neo4j-product-examples/graphrag-examples](https://github.com/neo4j-product-examples/graphrag-examples) (`customer-graph`).
+
+## How the data gets into Neo4j
+
+Required credentials: 
+create `customer-graph/.env` with `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` and `ANTHROPIC_API_KEY`.
+
+### 1. Unstructured data: credit notes (PDF)
+
+- **Source:** `data/credit-notes.pdf` (one PDF, 308 pages) - each credit note ID details the order ID and Article ID that being refunded
+- **Chunking:** the PDF text is read page by page and split into chunks of up to 15,000 characters (using `LangChainTextSplitterAdapter` library), cutting at page breaks. Each chunk is embedded locally - allocated to the Chunk nodes’ `embedding` property. The project doesn't need this property. It's there by design of `SimpleKGPipeline` library.
+- **Extraction:** Claude (through the Anthropic API) reads each chunk and extracts the entities and relationships defined in `ontos/customer.ttl`. `SimpleKGPipeline` writes them as `CreditNote`, `Order` and `Article` nodes, linked by `REFUND_OF_ARTICLE` and `REFUND_FOR_ORDER`, each tied back to its source `Chunk`. A chunk that fails is skipped (`on_error="IGNORE"`), so check the counts afterwards.
+- **Clean-up:** duplicate `Article` and `Order` nodes are merged by `articleId` / `orderId`, and any `Product` nodes the LLM created are deleted, because products come from the CSVs.
+
+### 2. Structured data: CSVs
+
+| File | Becomes |
+|---|---|
+| `suppliers.csv` | `Supplier` |
+| `products.csv` | `Product`, linked by `PART_OF` to `ProductType` and `ProductCategory` |
+| `articles.csv` | `Article`, linked by `VARIANT_OF` to its `Product` and `SUPPLIED_BY` to its `Supplier` |
+| `customers.csv` | `Customer` |
+| `order-details.csv` | `Order` (`Customer -ORDERED-> Order`) and `Order -CONTAINS-> Article` (with `price`) |
+
+Everything is loaded with `MERGE` on 7 uniqueness constraints (`articleId`, `orderId`, `customerId`, `supplierId`, `productCode`, and `name` for type and category). Reruns are safe, and the `Article` / `Order` nodes created from the PDF are enriched with the CSV data instead of duplicated.
+
+### 3. Post-processing
+
+Builds a text description for each product (name, type, category, description) in `Product.text`, embeds it locally into `Product.textEmbedding`, and creates the cosine vector index `product_text_embeddings`. Products without a description are skipped.
+
+**Counts after loading:** Article 13,351 · Order 6,529 · Product 8,044 (8,018 embedded) · Customer 1,000 · Supplier 266 · CreditNote 307.
+ 
+
+### 4. A completed graph after all ingestions:
+![alt text](image.png)
+
+## MCP tools:
+
+| Tool | What it does | Input |
+|---|---|---|
+| `search_products` | Finds the products whose description is closest in meaning to your text, e.g. "light summer dress". | free text |
+![search_product__tool](customer-graph/screenshot/search_product__tool.png)
+| `get_supplier_order_product_info` | Returns each supplier's total orders and refunds, plus a per-product breakdown. Counts are per order line / credit-note line, so they can be higher than the number of distinct orders. | supplier IDs |
+![get_supplier_order_product_info](customer-graph/screenshot/get_supplier_order_product_info__tool.png)
+| `answer_general_question` (Option A) | Answers any other question about the graph. The MCP server asks Claude to write the Cypher, runs it, and returns the Cypher and the rows. | a question in plain English |
+![answer_general_question](customer-graph/screenshot/answer_general_question__tool.png)
+| `get_graph_schema` (Option B) | Returns the graph schema plus a few example questions with their Cypher, so the chat model can write its own queries. | none |
+| `run_read_cypher` (Option B) | Runs a read-only Cypher query that the chat model wrote (up to 50 rows, 15-second timeout). | a Cypher query |
+![get_graph_schema__run_read_cypher__tool](customer-graph/screenshot/get_graph_schema__run_read_cypher__tool.png)
+| `recommend_products` | "People who bought these also bought": returns up to 20 products that other buyers of the same items also ordered, ranked by how often. Segment IDs appear in the tool description, but this project doesn't create them. | product codes or article IDs |
+![recommend_products__tool](customer-graph/screenshot/recommend_products__tool.png)
 
 
 # Agent notes: who generates the Cypher?
@@ -25,54 +69,37 @@ There are 2 ways to get a Cypher query:
 
 In both options an LLM generates the Cypher, and the MCP server is the one that connects to Aura and runs it.
 
-# Tools notes:
-
-
-`VectorRetriever.search()` embeds the user's prompt and runs a Cypher query that returns as many nodes as `top_k` specifies. 
-Each returned row arrives as a Neo4j `Record` object  which may look like this:
-```cypher
-RETURN node { .*, `textEmbedding`: null } AS node
-     , labels(node) AS nodeLabels
-     , elementId(node) AS elementId
-     , elementId(node) AS id
-     , score
-```
-Each `Record` is processed by the `node_record_formatter` function which takes  1 `Record` at a time as a parameter. The function puts the node's properties into `content` and everything else into the `metatdata`. These are the 2 elements of  `RetrieverResultItem` object which the function returns
-
-Once all nodes completely formatted, they form into a list of `RetrieverResultItem`. By default the query returns all of the node's properties (except `textEmbedding` is set to `None`). So originally a list of `RetrieverResultItem` looks like this (prompt sent: "lightweight summer dress")
-
-```python
-[
-  RetrieverResultItem(
-      content={'textEmbedding': None
-            ,'productCode': 921906
-            ,'name': 'Spring'
-            ,'description': 'Calf-length dress in an airy viscose weave with a collar, concealed buttons at the top and long raglan sleeves with buttoned cuffs. Relaxed fit with a gathered seam at the hips and above the hem. Unlined.'
-            ,'text': '##Product\nName: Spring\nType: Dress\nCategory: Garment Full body\nDescription: Calf-length dress in an airy viscose weave with a collar, concealed buttons at the top and long raglan sleeves with buttoned cuffs. Relaxed fit with a gathered seam at the hips and above the hem. Unlined.'
-            ,'url': 'https://representative-domain/product/921906'
-      }
-    , metadata={'score': 0.71, 'nodeLabels': ['Product'], 'id': '4:abc...:12'}
-  )
-, RetrieverResultItem(content={...}, metadata={...})  # up to top_k items
-]
-```
-
-But `return_properties` param controls which properties we will see which are `productCode` and `text` only. As a result, each `Record` now carries a smaller `node` map, so `content` holds only those two properties as below:
-
-```python
-[
-  RetrieverResultItem(
-      content={'productCode': 921906
-            ,'text': '##Product\nName: Spring\nType: Dress\nCategory: Garment Full body\nDescription: Calf-length dress in an airy viscose weave with a collar, concealed buttons at the top and long raglan sleeves with buttoned cuffs. Relaxed fit with a gathered seam at the hips and above the hem. Unlined.'
-
-      }
-    , metadata={'score': 0.71, 'nodeLabels': ['Product'], 'id': '4:abc...:12'}
-  )
-, RetrieverResultItem(content={...}, metadata={...})  # up to top_k items
-]
-```
-
-search() then wraps this list into a `RetrieverResult` which has 2 elements: `items` which is the list of `RetrieverResultItem` and `metadata` (retriever-level info, including the embedded prompt as `query_vector`)
-
-`get_products_similar_text` only cares about the `items` element because it wants to access each item of the list and return the list of all product's nodes properties.
+## Setup (uv)
  
+[uv](https://docs.astral.sh/uv/) replaces `python -m venv` and `pip` here. The repo has no `pyproject.toml`, so it is not a uv project: dependencies live in `requirements.txt`.
+ 
+```powershell
+uv venv graphrag_venv --python 3.12
+graphrag_venv\Scripts\Activate.ps1
+uv pip install -r requirements.txt
+uv pip install "mcp[cli]<2"
+```
+
+- **Run everything with the venv's `python`**.
+
+
+## Connect the MCP server to Claude Desktop
+ 
+ 
+1. Open **Settings → Desktop app → Extensions**. Under **Local MCP servers**, click **Edit config**. This opens `claude_desktop_config.json`. Use the button instead of hunting for the file: on my Windows Store install it lives under `%LOCALAPPDATA%\Claude-Data\claude_<id>\`, not the `%APPDATA%\Claude\` folder that older docs mention.
+
+2. The file already contains Claude's own settings (`preferences`), so don't replace it. Add an `mcpServers` entry next to them, separated by a comma:
+  ```json
+    "mcpServers": {
+      "retail-graph": {
+        "command": "C:\\path\\to\\graphrag_venv\\Scripts\\python.exe"
+        , "args": ["C:\\path\\to\\customer-graph\\graphrag\\mcp_server.py"]
+      }
+    }
+  ```
+
+4. **Fully quit and reopen Claude.** Closing the window isn't enough. Run `Stop-Process -Name claude -Force`.
+
+5. Back in **Settings → Desktop app → Extensions → Local MCP servers**, `retail-graph` should show **Running**. 
+
+![local_MCP_server_setup](customer-graph/screenshot/local_MCP_server_setup.png)
