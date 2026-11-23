@@ -70,7 +70,6 @@ class RetailService:
         -(:Customer)-[:ORDERED]->()-[:CONTAINS]->(recArticle:Article)-[:VARIANT_OF]->(product:Product)
         WHERE (interestedInArticles.articleId IN $itemIds) 
             OR (interestedInProducts.productCode IN $itemIds)
-            OR (customer.segmentId IN $itemIds)
         WITH count(recArticle) AS recommendationScore, product
         RETURN product ORDER BY recommendationScore DESC LIMIT 20
         """, itemIds=segment_item_ids_or_codes)
