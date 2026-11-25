@@ -1,10 +1,10 @@
 # GraphRAG fashion retail: Neo4j + Claude + MCP
 
-A learn-by-doing GraphRAG project on a fashion-retail dataset. A Neo4j Aura graph is built from structured CSVs plus credit-note text extracted from a PDF, then exposed to Claude Desktop through a local MCP server (`customer-graph/graphrag/mcp_server.py`). Embeddings are computed locally (`all-MiniLM-L6-v2`, 384 dimensions). Source repo: [neo4j-product-examples/graphrag-examples](https://github.com/neo4j-product-examples/graphrag-examples) (`customer-graph`).
+A GraphRAG project on a fashion-retail dataset. A Neo4j graph is built from structured CSVs plus credit-note text extracted from a PDF, then exposed to Claude Desktop through a local MCP server (`customer-graph/graphrag/mcp_server.py`). Embeddings are computed locally (`all-MiniLM-L6-v2`, 384 dimensions). Source repo: [neo4j-product-examples/graphrag-examples](https://github.com/neo4j-product-examples/graphrag-examples) (`customer-graph`).
 
 ## How the data gets into Neo4j
 
-Required credentials: 
+Required: 
 create `customer-graph/.env` with `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` and `ANTHROPIC_API_KEY`.
 
 ### 1. Unstructured data: credit notes (PDF)

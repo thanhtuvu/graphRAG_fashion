@@ -63,16 +63,15 @@ class RetailService:
 
         return products
 
-    async def get_product_recommendations(self, segment_item_ids_or_codes: List[int]) -> List[Product]:
+    async def get_product_recommendations(self, item_ids_or_codes: List[int]) -> List[Product]:
         res = self._driver.execute_query("""
-        MATCH (customer:Customer)-[:ORDERED]->()-[:CONTAINS]->()-[:VARIANT_OF]->
-        (interestedInProducts:Product)<-[:VARIANT_OF]-(interestedInArticles:Article)<-[:CONTAINS]-()<-[:ORDERED]
+        MATCH (interestedInProducts:Product)<-[:VARIANT_OF]-(interestedInArticles:Article)<-[:CONTAINS]-()<-[:ORDERED]
         -(:Customer)-[:ORDERED]->()-[:CONTAINS]->(recArticle:Article)-[:VARIANT_OF]->(product:Product)
-        WHERE (interestedInArticles.articleId IN $itemIds) 
-            OR (interestedInProducts.productCode IN $itemIds)
+        WHERE interestedInProducts.productCode IN $itemIds
+        AND NOT product.productCode IN $itemIds
         WITH count(recArticle) AS recommendationScore, product
-        RETURN product ORDER BY recommendationScore DESC LIMIT 20
-        """, itemIds=segment_item_ids_or_codes)
+        RETURN product ORDER BY recommendationScore DESC LIMIT 10
+        """, itemIds=item_ids_or_codes)
 
         products = []
         for item in res.records:

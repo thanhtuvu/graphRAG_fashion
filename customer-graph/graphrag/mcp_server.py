@@ -55,10 +55,10 @@ async def search_products(prompt_text: str) -> list[dict]:
 
 
 @mcp.tool()
-async def recommend_products(segment_item_ids_or_codes: list[int]) -> list[dict]:
+async def recommend_products(item_ids_or_codes: list[int]) -> list[dict]:
     """Retrieve product recommendations given a list of product codes, article ids, or
     segment ids. Re-order or filter further based on additional context from the user."""
-    return await svc().get_product_recommendations(segment_item_ids_or_codes)
+    return await svc().get_product_recommendations(item_ids_or_codes)
 
 
 @mcp.tool()
